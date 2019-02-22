@@ -4,7 +4,7 @@
 
 ;; Author: Clemens Radermacher <clemera@posteo.net>
 ;; URL: https://github.com/clemera/dired-git-info
-;; Version: 0.1
+;; Version: 0.2
 ;; Package-Requires: ((emacs "25"))
 ;; Keywords: dired, files
 
@@ -85,10 +85,15 @@ are (see git-log PRETTY FORMATS for all):
   "If no details view has to be restored.")
 
 (defun dgi--command-to-string (program &rest args)
-  "Execute PROGRAM with arguments ARGS and return output string."
-  (with-output-to-string
-    (with-current-buffer standard-output
-      (apply #'process-file program nil t nil args))))
+  "Execute PROGRAM with arguments ARGS and return output string.
+
+If program returns non zero exit code return nil."
+  (let* ((ecode nil)
+         (output (with-output-to-string
+                    (with-current-buffer standard-output
+                      (setq ecode (apply #'process-file program nil t nil args))))))
+    (when (eq ecode 0)
+      output)))
 
 
 (defun dgi--get-commit-info (&optional file gitf)
@@ -96,8 +101,9 @@ are (see git-log PRETTY FORMATS for all):
 
 FILE default to current dired file. GITF determines the commit
 info format and defaults to `dgi-commit-message-format'."
-  (let ((file (or file (dired-get-file-for-visit))))
-    (when (and file (file-exists-p file))
+  (let* ((tfile (or file (dired-get-file-for-visit)))
+         (file (or (file-remote-p tfile 'localname) tfile)))
+    (when file
       (let ((msg (dgi--command-to-string
                   "git" "log" "-1"
                   (concat "--pretty="

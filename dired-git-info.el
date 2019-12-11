@@ -4,7 +4,7 @@
 
 ;; Author: Clemens Radermacher <clemera@posteo.net>
 ;; URL: https://github.com/clemera/dired-git-info
-;; Version: 0.2
+;; Version: 0.3
 ;; Package-Requires: ((emacs "25"))
 ;; Keywords: dired, files
 
@@ -178,6 +178,29 @@ info format and defaults to `dgi-commit-message-format'."
       (split-string (buffer-string) "\n"))))
 
 
+(defun dgi--format-line-overlay (msg)
+  "Format message MSG for current dired line."
+  (let* ((le (line-end-position))
+         (aw (- (window-width)
+                (1+ (save-excursion
+                      (goto-char le)
+                      (current-column))))))
+    (if (not (> aw 0))
+        "\n"
+      (concat (dgi--clamp-string msg aw)
+              "\n"))))
+
+(defun dgi--clamp-string (str max)
+  "Return STRING truncated to MAX length if needed."
+  (propertize
+   (if (> (length str) max)
+       (concat (substring str 0
+                          (- max (+ (length str) 3)))
+               "...")
+     str)
+   'face 'dgi-commit-message-face))
+
+
 ;;;###autoload
 (define-minor-mode dired-git-info-mode
   "Toggle git message info in current dired buffer."
@@ -208,16 +231,22 @@ info format and defaults to `dgi-commit-message-format'."
                           ?\s)))
                 (goto-char (line-end-position))
                 (let ((ov (make-overlay (point) (1+ (point))))
-                      (ovs (concat spc
-                                   (propertize
-                                    msg 'face 'dgi-commit-message-face)
-                                   "\n")))
+                      (ovs (dgi--format-line-overlay (concat spc msg))))
                   (push ov dgi--commit-ovs)
                   ;; I don't use after-string because I didn't get it to work
                   ;; in combination with hl-line-mode overlay
                   (overlay-put ov 'display ovs)
                   ;; hl line mode should have priority
                   (overlay-put ov 'priority -60))))))))))
+
+;;;###autoload
+(defun dired-git-info-auto-enable ()
+  "Enable `dired-git-info-mode' if current dired buffer is in a git repo.
+
+Add this function to `dired-after-readin-hook' to enable the mode
+automatically inside git repos."
+  (when (locate-dominating-file "." ".git")
+    (dired-git-info-mode)))
 
 
 (provide 'dired-git-info)
